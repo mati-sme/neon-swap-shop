@@ -11,10 +11,14 @@ Inspired by shopkeeper sims. All art is procedural pixel art; all sounds are syn
   - 🏷️ Shelf: choose what is on display · 📦 Box: your items (♻ recycle for coins)
   - 🔧 Bench: ✨ polish (worth 1.5x) or x3 ➜ ⬆ merge into a better tier
   - 🚪 Junk Dump: limited digs, limited bag — tap 3 times per dig, find rare loot
-  - 🛏️ Pod: sleep, pay the weekly fee, start a new day
-- **Trade:** ✓ accept · ↔ haggle (stop the needle on green) · 🔍 inspect (compare with the handbook: ✅ real / 🚫 fake;
-  fakes differ in logo, button count or stripe colour) · 🔎✨ appraise rare items (find 3 hidden marks) · ✗ no.
-- Streaks multiply coins, every level gives a chest and a new decoration, the fee never ends the game.
+  - 🛏️ Pod: sleep and start a new day
+- **Trade:** ✅ accept · 💬 haggle (stop the needle on green) · 🔍 inspect (compare with the handbook: ✅ real / 🚫 fake;
+  a fake is missing its ⭐ logo, has an extra 🔘 button or a wrong 🎨 colour patch on that item's own sprite) ·
+  🔎✨ appraise rare items (find 3 hidden marks) · ❌ no. Rarer items glow in their tier colour.
+- Streaks multiply coins, every level gives a chest and a new decoration.
+- **Shop rank** (Stall → Kiosk → Shop → Mega Store → Station Icon): the 🎯 chip in the HUD shows the next goal.
+  A rank-up comes from coins earned in the current rank *or* a play-time floor (first one ≈ 5–7 min, then every ≈ 9–11 min),
+  so it never stalls. Each rank redecorates the room and adds a shelf slot; nothing is ever lost or paid.
 
 ## Run
 Serve the folder with any static server, e.g. `python3 -m http.server`, and open it on a phone (installable PWA, works offline).

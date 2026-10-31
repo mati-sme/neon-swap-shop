@@ -46,7 +46,7 @@ const Trade = (() => {
       const p = Data.price(o.key, s.news);
       const tier = Data.ITEMS[o.key].tier;
       const fakeChance = s.day >= 3 ? 0.25 : s.day >= 2 ? 0.15 : 0;
-      if (Math.random() < fakeChance) o.fake = pick(['logo', 'btn', 'color']);
+      if (Math.random() < fakeChance) o.fake = pick(Art.fakeTypes(o.key));
       else if (tier >= 3 && Math.random() < 0.35) o.rare = true;
       o.price = Math.max(1, Math.round(p * (o.rare ? 0.35 : 0.6) * (c.vip ? 1.2 : 1)));
     } else if (o.kind === 'buy') {
@@ -80,11 +80,11 @@ const Trade = (() => {
       '<div class="tk"><b>' + word + '</b> ' + Data.item(o.key).name + (o.verified ? ' ✅' : '') + (o.rare ? ' ✨?' : '') + '</div>' +
       '<div class="price">' + (o.kind === 'help' ? '💖 free' : '🪙 <b id="tPrice">' + o.price + '</b>') + '</div>' +
       '<div class="btns" id="tBtns">' +
-      '<button id="bAccept" class="rb ok" data-act="accept">✓</button>';
-    if (o.kind !== 'help' && !o.haggled) h += '<button id="bHaggle" class="rb" data-act="haggle">↔</button>';
+      '<button id="bAccept" class="rb ok" data-act="accept">✅</button>';
+    if (o.kind !== 'help' && !o.haggled) h += '<button id="bHaggle" class="rb" data-act="haggle">💬</button>';
     if (o.kind === 'sell' && o.rare) h += '<button id="bAppraise" class="rb" data-act="appraise">🔎✨</button>';
     else if (o.kind === 'sell' && !o.verified) h += '<button id="bInspect" class="rb" data-act="inspect">🔍</button>';
-    h += '<button id="bNo" class="rb no" data-act="no">✗</button></div></div>';
+    h += '<button id="bNo" class="rb no" data-act="no">❌</button></div></div>';
     UI.show(h, onAct, null, o.c.vip ? 'gold' : '');
   }
 
@@ -142,7 +142,7 @@ const Trade = (() => {
     $('tBtns').outerHTML = '<div id="tBtns" class="hg"><div class="hgbar" id="hgBar">' +
       '<i class="y" style="left:' + (hg.c0 - 0.2) * 100 + '%;width:40%"></i>' +
       '<i class="g" style="left:' + (hg.c0 - g / 2) * 100 + '%;width:' + g * 100 + '%"></i>' +
-      '<b id="needle"></b></div><button id="hgTap" class="big ok" data-act="hgtap">TAP!</button></div>';
+      '<b id="needle"></b></div><button id="hgTap" class="big ok" data-act="hgtap">👆 TAP!</button></div>';
     o.haggled = true;
   }
 
@@ -178,7 +178,7 @@ const Trade = (() => {
   function inspect() {
     const o = cur;
     const base = Data.split(o.key)[0];
-    const reg = o.fake ? Art.regions[o.fake] : null;
+    const reg = o.fake ? Art.region(base, o.fake) : null;
     const ring = reg && Game.state.up.magnify
       ? '<i class="ring" style="left:' + (reg[0] - 1) * 8 + 'px;top:' + (reg[1] - 1) * 8 + 'px;width:' + (reg[2] + 2) * 8 + 'px;height:' + (reg[3] + 2) * 8 + 'px"></i>' : '';
     UI.show('<div class="card wide"><h2>🔍</h2><div class="cmp">' +

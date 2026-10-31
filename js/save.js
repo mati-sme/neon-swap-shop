@@ -8,7 +8,7 @@ const Save = (() => {
     return {
       v: 1,
       coins: 30, xp: 0, level: 1, day: 1, rank: 0, rep: 10,
-      feeDue: 7, feeMult: 1,
+      rankEarned: 0, rankT: 0,
       inv: { bolt: 2, battery: 2, mug: 1, cog: 1 },
       display: ['block', 'toaster', 'radio'],
       up: { slots: 0, bag: 0, digs: 0, speed: 0, haggle: 0, magnify: 0, bench: 0, bot: 0, deco: 0 },

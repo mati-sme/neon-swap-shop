@@ -19,25 +19,24 @@
   <div id="play"></div>
   <div id="joy"><i id="joyKnob"></i></div>
 
+  <div id="labels"></div>
+
   <div id="hud">
     <div class="row">
       <div class="chip"><span>🪙</span><b id="hCoins">0</b></div>
       <div class="chip lvl"><span>⭐</span><b id="hLvl">1</b><div class="bar"><i id="hXp"></i></div></div>
+      <div class="chip"><span>📅</span><b id="hDay">1</b></div>
       <button id="bMenu" class="ibtn" aria-label="Menu">⚙️</button>
     </div>
     <div class="row">
-      <div class="chip"><span>📅</span><b id="hDay">1</b></div>
-      <div class="chip rent"><span>🏠</span><div class="bar"><i id="hRent"></i></div><small id="hRentTxt"></small></div>
+      <button id="hGoal" class="chip goal" aria-label="Next goal"><span id="hGoalIco">🎯</span><div class="bar"><i id="hGoalBar"></i></div><small id="hGoalTxt"></small></button>
       <button id="hNews" class="chip news" aria-label="News">🌙</button>
+      <button id="bUp" class="ibtn" aria-label="Upgrades">⬆️</button>
+      <button id="bBook" class="ibtn" aria-label="Book">📖</button>
+      <button id="bHand" class="ibtn" aria-label="Handbook">📒</button>
     </div>
     <div id="hStreak"></div>
     <div id="hDump" class="chip"></div>
-  </div>
-
-  <div id="side">
-    <button id="bUp" class="ibtn" aria-label="Upgrades">⬆️</button>
-    <button id="bBook" class="ibtn" aria-label="Book">📖</button>
-    <button id="bHand" class="ibtn" aria-label="Handbook">📒</button>
   </div>
 
   <div id="tut"></div>
@@ -55,6 +54,7 @@
 <script src="js/data.js"></script>
 <script src="js/save.js"></script>
 <script src="js/audio.js"></script>
+<script src="js/sprites.js"></script>
 <script src="js/art.js"></script>
 <script src="js/input.js"></script>
 <script src="js/ui.js"></script>

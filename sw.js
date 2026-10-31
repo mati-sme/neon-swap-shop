@@ -1,6 +1,6 @@
 /* Neon Swap Shop service worker — cache-first, bump CACHE on every release. */
 'use strict';
-const CACHE = 'neon-swap-shop-v1';
+const CACHE = 'neon-swap-shop-v2';
 const ASSETS = [
   './',
   'index.html',
@@ -9,6 +9,7 @@ const ASSETS = [
   'js/data.js',
   'js/save.js',
   'js/audio.js',
+  'js/sprites.js',
   'js/art.js',
   'js/input.js',
   'js/ui.js',

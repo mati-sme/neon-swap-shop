@@ -10,7 +10,12 @@ const UI = (() => {
   let job = null; // workbench job {key, mode, t, dur}
   let benchSel = null;
 
-  const img = (key, s) => '<img class="px" width="' + 16 * s + '" height="' + 16 * s + '" src="' + Art.icon(key, s) + '">';
+  // item picture with a glow in its rarity colour (junk gets none)
+  const img = (key, s) => {
+    const tier = Data.item(key).tier;
+    const glow = tier ? ' style="filter:drop-shadow(0 0 ' + (2 + tier) + 'px ' + Data.TIER_COLORS[tier] + ')"' : '';
+    return '<img class="px" width="' + 16 * s + '" height="' + 16 * s + '" src="' + Art.icon(key, s) + '"' + glow + '>';
+  };
   const st = () => Game.state;
 
   // ---------- modal core ----------
@@ -65,7 +70,7 @@ const UI = (() => {
     t.textContent = text;
     $('toasts').appendChild(t);
     t.addEventListener('animationend', () => t.remove());
-    while ($('toasts').children.length > 3) $('toasts').firstChild.remove();
+    while ($('toasts').children.length > 2) $('toasts').firstChild.remove();
   }
 
   function pop(text, color, x, y) {
@@ -164,9 +169,11 @@ const UI = (() => {
     $('hLvl').textContent = s.level;
     $('hXp').style.width = Math.min(100, s.xp / Data.xpNeed(s.level) * 100) + '%';
     $('hDay').textContent = s.day;
-    const fee = Game.fee();
-    $('hRent').style.width = Math.min(100, s.coins / fee * 100) + '%';
-    $('hRentTxt').textContent = Math.max(0, s.feeDue - s.day) + 'd';
+    const g = Game.goal();
+    $('hGoalIco').textContent = g.icon;
+    $('hGoalBar').style.width = g.pct * 100 + '%';
+    $('hGoalTxt').textContent = g.txt;
+    $('hGoal').classList.toggle('can', g.can);
     $('hNews').textContent = Data.NEWS[s.news].icon;
     const m = Game.mult();
     $('hStreak').textContent = m > 1 ? '🔥 x' + m : '';
@@ -181,15 +188,15 @@ const UI = (() => {
       '<button class="tile" data-act="mute">' + (SFX.isMuted() ? '🔇' : '🔊') + '<small>Sound</small></button>' +
       '<button class="tile" data-act="hand">📒<small>Handbook</small></button>' +
       '<button class="tile" data-act="book">📖<small>Book</small></button></div>' +
-      '<div class="bd">Rank: <b>' + Data.RANKS[s.rank] + '</b> · Rep ❤ <b>' + Math.round(s.rep) + '</b><br>Fee: 🪙 ' + Game.fee() + ' due day ' + s.feeDue + '</div>' +
-      '<button class="small warn" data-act="reset">Reset save</button>' +
+      '<div class="bd">🏠 <b>' + Data.RANKS[s.rank] + '</b> · ❤ <b>' + Math.round(s.rep) + '</b> · 📅 <b>' + s.day + '</b></div>' +
+      '<button class="small warn" data-act="reset">🗑️ ↺</button>' +
       '<button id="mOk" class="big ok" data-act="close">✓</button></div>', (a) => {
       if (a === 'mute') { SFX.setMuted(!SFX.isMuted()); s.mute = SFX.isMuted(); SFX.unlock(); menu(); }
       else if (a === 'hand') handbook();
       else if (a === 'book') book();
       else if (a === 'reset') {
-        show('<div class="card"><h2>Reset?</h2><div class="bd">Erase everything and start over.</div>' +
-          '<div class="row"><button class="big no" data-act="close">✗</button><button class="big ok" data-act="reset2">✓</button></div></div>', (b) => {
+        show('<div class="card"><h2>🗑️ ?</h2><div class="bd">Erase everything and start over.</div>' +
+          '<div class="row"><button class="big no" data-act="close">❌</button><button class="big ok" data-act="reset2">✅</button></div></div>', (b) => {
           if (b === 'reset2') Game.reset();
           else if (b === 'close') close();
         });
@@ -199,7 +206,7 @@ const UI = (() => {
 
   function handbook() {
     const s = st();
-    let h = '<div class="card wide"><h2>📒 Handbook</h2><div class="bd">Real items have: ⭐ logo · button count · stripe colour</div><div class="grid4 scroll">';
+    let h = '<div class="card wide"><h2>📒</h2><div class="bd">Fakes miss a ⭐ · add a 🔘 · or change a 🎨</div><div class="grid4 scroll">';
     for (const id of Data.IDS) {
       if (!s.found[id]) continue;
       h += '<div class="tile">' + img(id, 3) + '<small>' + Data.ITEMS[id].name + '</small></div>';
@@ -263,6 +270,26 @@ const UI = (() => {
     }, null, 'gold');
   }
 
+  // big celebration: the new rank, a peek at the redecorated shop, and what it unlocked
+  function rankUp(rank) {
+    const reward = 50 * rank;
+    const peek = Art.buildShop(rank, Math.min(Data.DECOR.length, Math.max(0, st().level - 1)));
+    const crop = document.createElement('canvas');
+    crop.width = Art.W; crop.height = 170;
+    const g = crop.getContext('2d');
+    g.drawImage(peek, 0, 0);
+    show('<div class="card rankup"><div class="burst">🏆</div><h2>' + Data.RANKS[rank] + '!</h2>' +
+      '<img class="px peek" src="' + crop.toDataURL() + '">' +
+      '<div class="bd">🪙 <b>+' + reward + '</b><br>' + Data.RANK_GIFT[rank - 1] + '</div>' +
+      '<button id="mOk" class="big ok" data-act="close">🎉 ▶</button></div>', null, null, 'gold');
+    Game.addCoins(reward, { raw: true, quiet: true });
+    confetti(90);
+    setTimeout(() => confetti(70), 350);
+    setTimeout(() => confetti(70), 800);
+    Game.shake(3);
+    SFX.play('level');
+  }
+
   function gift(coins, streak) {
     info('🎁 Daily gift', '🪙 <b>+' + coins + '</b><br>Days in a row: ' + streak, '✓', () => {});
     Game.addCoins(coins, { raw: true });
@@ -286,7 +313,7 @@ const UI = (() => {
       h += '<button class="tile mini' + (benchSel === k ? ' sel' : '') + '" data-act="' + act + ':' + k + '">' + img(k, 2) +
         '<small>x' + s.inv[k] + '</small></button>';
     }
-    return h || '<div class="bd">Empty! Go dig in the dump 🚪</div>';
+    return h || '<div class="bd">🚪 ➡️ ⛏️</div>';
   }
 
   function shelf() {
@@ -322,7 +349,7 @@ const UI = (() => {
     const s = st();
     let h = '<div class="card wide"><h2>📦</h2><div class="grid5 scroll">' + invTiles(null, 'item') + '</div>';
     const k = benchSel && s.inv[benchSel] > 0 ? benchSel : null;
-    h += '<div class="bd">' + (k ? Data.item(k).name + ' · 🪙 ' + Data.price(k, s.news) : 'Tap an item') + '</div>';
+    h += '<div class="bd">' + (k ? Data.item(k).name + ' · 🪙 ' + Data.price(k, s.news) : '👆') + '</div>';
     h += (k ? '<button class="small warn" data-act="recycle">♻ +' + Math.max(1, Math.floor(Data.price(k, s.news) * 0.5)) + '</button>' : '') +
       '<button id="mOk" class="big ok" data-act="close">✓</button></div>';
     show(h, (a) => {
@@ -410,7 +437,7 @@ const UI = (() => {
 
   return {
     $, img, show, close, queue, isOpen, info, toast, pop, flyCoins, flash, confetti, hud, menu, handbook, book, upgrades,
-    chest, gift, summary, shelf, storage, bench, tick, bindModal,
+    chest, rankUp, gift, summary, shelf, storage, bench, tick, bindModal,
     get handler() { return handler; },
   };
 })();

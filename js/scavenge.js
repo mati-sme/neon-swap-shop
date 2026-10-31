@@ -7,6 +7,7 @@ const Dump = (() => {
   const WH = Art.DUMP_H;
   const player = { x: 180, y: 455, face: 1, moving: false };
   const EXIT = { x: 180, y: 492, r: 20 };
+  const SCRAP_BOT = { id: 5, sp: 'robot', col: '#6a6f88', col2: '#4a4f68', vip: false };
   let bg = null;
   let spots = [];
   let bunnies = [];
@@ -25,6 +26,15 @@ const Dump = (() => {
 
   function bagCap() { return Game.bagCap(); }
 
+  // junk heaps are solid; m widens the box (used to keep dig spots clear of them)
+  function hitsPile(x, y, m) {
+    const b = Art.dumpBlockers;
+    for (let i = 0; i < b.length; i++) {
+      if (x > b[i].x - m && x < b[i].x + b[i].w + m && y > b[i].y - m + 8 && y < b[i].y + b[i].h + m) return true;
+    }
+    return false;
+  }
+
   function enter() {
     const s = state();
     if (!bg) bg = Art.buildDump();
@@ -36,10 +46,10 @@ const Dump = (() => {
     dig = null;
     sawRare = false;
     spots = [];
-    for (let tries = 0; spots.length < 9 && tries < 400; tries++) {
+    for (let tries = 0; spots.length < 9 && tries < 600; tries++) {
       const x = rnd(34, WW - 34);
       const y = rnd(40, 420);
-      if (spots.every((o) => Math.hypot(o.x - x, o.y - y) > 52) && Math.hypot(x - player.x, y - player.y) > 60) {
+      if (spots.every((o) => Math.hypot(o.x - x, o.y - y) > 52) && Math.hypot(x - player.x, y - player.y) > 60 && !hitsPile(x, y, 16)) {
         spots.push({ x, y, used: false, shake: 0 });
       }
     }
@@ -56,6 +66,7 @@ const Dump = (() => {
     bag = [];
     dig = null;
     $('digBtn').classList.add('hidden');
+    $('loot').classList.remove('go');
     for (const k of got) { Game.invAdd(k, 1); Game.markFound(k); }
     Game.setScene('shop');
     Shop.teleport(170, 264);
@@ -80,7 +91,7 @@ const Dump = (() => {
     if (UI.isOpen() || dig || !near || !actionInfo()) return false;
     SFX.unlock();
     if (near === EXIT) { exit(); return true; }
-    if (bag.length >= bagCap()) { UI.toast('🎒 Bag full! Go home 🏠'); SFX.play('bad'); return true; }
+    if (bag.length >= bagCap()) { UI.toast('🎒 Full! 🏠'); SFX.play('bad'); return true; }
     dig = { spot: near, taps: 0 };
     $('digBtn').classList.remove('hidden');
     Input.reset();
@@ -131,8 +142,8 @@ const Dump = (() => {
     el.classList.remove('go');
     void el.offsetWidth;
     el.classList.add('go');
-    if (digsLeft <= 0) UI.toast('No digs left — go home 🏠');
-    else if (bag.length >= bagCap()) UI.toast('🎒 Bag full — go home 🏠');
+    if (digsLeft <= 0) UI.toast('⛏️ 0! 🏠');
+    else if (bag.length >= bagCap()) UI.toast('🎒 Full! 🏠');
   }
 
   function update(dt, t) {
@@ -140,8 +151,10 @@ const Dump = (() => {
     for (const sp of spots) if (sp.shake > 0) sp.shake -= dt;
     const v = UI.isOpen() || dig ? { x: 0, y: 0 } : Input.vec();
     const sp = 55 * (1 + 0.1 * s.up.speed);
-    player.x = Math.max(12, Math.min(WW - 12, player.x + v.x * sp * dt));
-    player.y = Math.max(22, Math.min(WH - 10, player.y + v.y * sp * dt));
+    const nx = Math.max(12, Math.min(WW - 12, player.x + v.x * sp * dt));
+    if (!hitsPile(nx, player.y, 0)) player.x = nx;
+    const ny = Math.max(30, Math.min(WH - 10, player.y + v.y * sp * dt));
+    if (!hitsPile(player.x, ny, 0)) player.y = ny;
     player.moving = v.x * v.x + v.y * v.y > 0.01;
     if (v.x) player.face = v.x > 0 ? 1 : -1;
 
@@ -190,34 +203,26 @@ const Dump = (() => {
     ctx.save();
     ctx.translate(-camX, -camY);
     ctx.drawImage(bg, 0, 0);
-    for (const o of spots) {
-      const ox = Math.round(o.x + (o.shake > 0 ? Math.round(Math.sin(t * 60) * 1.5) : 0));
-      const oy = Math.round(o.y);
-      if (o.used) {
-        ctx.fillStyle = '#150d28'; ctx.fillRect(ox - 6, oy - 2, 12, 5);
-      } else {
-        const pulse = 0.35 + 0.25 * Math.sin(t * 4 + o.x);
-        ctx.fillStyle = 'rgba(58,255,208,' + pulse + ')'; ctx.fillRect(ox - 9, oy - 5, 18, 10);
-        ctx.fillStyle = '#3a2a1a'; ctx.fillRect(ox - 6, oy - 3, 12, 6);
-        ctx.fillStyle = '#ffd84a'; ctx.fillRect(ox - 1, oy - 7 - Math.round(Math.sin(t * 5 + o.y)), 2, 2);
-      }
-    }
+    for (const o of spots) Art.drawSpot(ctx, o.x, o.y, t, o.used, o.shake > 0, near === o && !o.used);
     for (const b of bots) {
-      Art.drawCustomer(ctx, { id: 5, sp: 'robot', col: '#6a6f88', col2: '#4a4f68', vip: false }, b.x, b.y, 0, false);
+      Art.drawCustomer(ctx, SCRAP_BOT, b.x, b.y, 0, false);
       ctx.fillStyle = '#9ad'; ctx.fillRect(Math.round(b.x) + 6, Math.round(b.y) - 22 - Math.round(t * 4 % 4), 3, 1);
     }
     for (const b of bunnies) {
       const bx = Math.round(b.x);
       const by = Math.round(b.y);
       ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(bx - 4, by + 1, 9, 2);
-      ctx.fillStyle = '#b8a8d8'; ctx.fillRect(bx - 4, by - 6, 9, 7); ctx.fillRect(bx - 3, by - 8, 7, 2);
-      ctx.fillStyle = '#102'; ctx.fillRect(bx - 2, by - 5, 1, 2); ctx.fillRect(bx + 2, by - 5, 1, 2);
+      ctx.drawImage(Art.bunny(), bx - 4, by - 8);
     }
     Art.drawPlayer(ctx, player.x, player.y, t, player.face, player.moving);
-    if (near && actionInfo()) {
-      ctx.strokeStyle = 'rgba(255,207,58,' + (0.6 + 0.3 * Math.sin(t * 6)) + ')';
-      ctx.strokeRect(Math.round(near.x) - 11.5, Math.round(near.y) - 7.5, 23, 15);
+    if (near === EXIT) {
+      ctx.strokeStyle = 'rgba(58,255,208,' + (0.6 + 0.3 * Math.sin(t * 6)) + ')';
+      ctx.strokeRect(150.5, WH - 37.5, 59, 37);
     }
+    // bouncing arrow over the exit
+    ctx.fillStyle = '#3affd0';
+    const ay = WH - 62 + Math.round(Math.abs(Math.sin(t * 4)) * 3);
+    ctx.fillRect(177, ay, 6, 3); ctx.fillRect(178, ay + 3, 4, 2); ctx.fillRect(179, ay + 5, 2, 2);
     Parts.draw(ctx, 0);
     ctx.restore();
   }

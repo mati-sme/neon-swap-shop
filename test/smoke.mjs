@@ -54,10 +54,16 @@ const gameReady = () => page.waitForFunction(() => window.__game && window.__gam
 const exists = (sel) => page.$(sel).then((h) => !!h);
 const click = (sel) => page.click(sel, { timeout: 3000 });
 
-// close any info/chest/summary modals (all use #mOk)
+// close any info/chest/summary modals (all use #mOk); grabs the big rank-up card on its way past
+let rankCardShot = false;
 async function dismiss() {
   for (let i = 0; i < 12; i++) {
     if (!(await exists('#mOk'))) return;
+    if (!rankCardShot && (await exists('.card.rankup'))) {
+      rankCardShot = true;
+      await sleep(900);
+      await page.screenshot({ path: path.join(SHOTS, 'rankup.png') });
+    }
     await click('#mOk');
     await sleep(60);
   }
@@ -121,7 +127,10 @@ async function serveCustomers(n, opts) {
     if (s.phase === 'prep' || (s.queued && !s.active)) {
       if (s.near !== 'counter') await G(() => window.__game.goTo('counter'));
       await sleep(80);
-      if (await G(() => !!window.__game.shop.actionInfo())) await click('#actionBtn');
+      // a rank-up / chest card can pop up at any moment and hides the button: skip, next loop dismisses it
+      if (await G(() => !!window.__game.shop.actionInfo() && !window.__game.ui.isOpen())) {
+        try { await click('#actionBtn'); } catch (_) { /* modal appeared in between */ }
+      }
     }
     await sleep(100);
   }
@@ -173,12 +182,92 @@ async function sleepDay() {
   check(day2 === day + 1, 'slept to day ' + day2);
 }
 
+// put whatever is in the bag on the shelf through the real shelf UI
+async function stockShelf() {
+  await dismiss();
+  await G(() => window.__game.goTo('shelf'));
+  await sleep(100);
+  await click('#actionBtn');
+  await sleep(100);
+  for (let i = 0; i < 10; i++) {
+    const t = await page.$('.tile[data-act^="put:"]');
+    if (!t) break;
+    await t.click();
+    await sleep(40);
+  }
+  await dismiss();
+  await G(() => window.__game.goTo('counter'));
+}
+
 async function buyUpgrade() {
   await click('#bUp');
   const can = await exists('.tile.up.can');
   if (can) await click('.tile.up.can');
   await dismiss();
   return can;
+}
+
+// HUD / room / buttons must not collide, on any phone size
+async function layoutCheck(pg, tag) {
+  const r = await pg.evaluate(() => {
+    const q = (s) => document.querySelector(s).getBoundingClientRect();
+    const hud = q('#hud');
+    const cv = q('#cv');
+    const lbls = [...document.querySelectorAll('.lbl b')].map((e) => e.getBoundingClientRect());
+    const btns = ['bUp', 'bBook', 'bHand', 'bMenu', 'hNews', 'hGoal'].map((id) => q('#' + id));
+    const hit = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+    const act = document.getElementById('actionBtn');
+    return {
+      hudBottom: hud.bottom, cvTop: cv.top, cvH: cv.height, vh: innerHeight, vw: innerWidth,
+      labelsInside: lbls.length === 6 && lbls.every((l) => l.top >= cv.top - 1 && l.bottom <= cv.bottom && l.left >= 0 && l.right <= innerWidth),
+      labelHitsButton: lbls.some((l) => btns.some((b) => hit(l, b))),
+      toastTop: q('#toasts').top,
+      btnsInHud: btns.every((b) => b.bottom <= hud.bottom + 1 && b.right <= innerWidth && b.left >= 0),
+      goal: document.getElementById('hGoalTxt').textContent,
+      roomFits: window.__game.viewH >= 332,
+    };
+  });
+  check(r.hudBottom <= r.cvTop + 1, tag + ': room starts below the HUD (' + r.hudBottom + ' <= ' + r.cvTop + ')');
+  check(r.btnsInHud, tag + ': side buttons live inside the HUD');
+  check(r.labelsInside, tag + ': all 6 station labels are inside the room view');
+  check(!r.labelHitsButton, tag + ': no station label under a HUD button');
+  check(r.toastTop >= r.hudBottom, tag + ': toasts sit under the HUD');
+  check(r.roomFits, tag + ': whole room fits without scrolling');
+  check(r.goal.length > 0, tag + ': next-goal chip shows progress (' + r.goal + ')');
+}
+
+// every item has its own sprite; each fake changes only a small detail
+async function artCheck() {
+  const art = await G(() => {
+    const ids = Data.IDS;
+    const urls = new Set(ids.map((id) => Art.icon(id, 4)));
+    const px = (id, fake) => {
+      const c = document.createElement('canvas');
+      c.width = 16; c.height = 16;
+      const g = c.getContext('2d');
+      Art.drawItem(g, id, 0, 0, 1, fake);
+      return g.getImageData(0, 0, 16, 16).data;
+    };
+    const bad = [];
+    let maxDiff = 0;
+    for (const id of ids) {
+      const types = Art.fakeTypes(id);
+      if (types.length < 2) bad.push(id + ' has few fake types');
+      const real = px(id, null);
+      for (const t of types) {
+        const f = px(id, t);
+        let d = 0;
+        for (let i = 0; i < real.length; i += 4) if (real[i] !== f[i] || real[i + 1] !== f[i + 1] || real[i + 2] !== f[i + 2] || real[i + 3] !== f[i + 3]) d++;
+        maxDiff = Math.max(maxDiff, d);
+        if (d < 2) bad.push(id + ':' + t + ' fake barely differs (' + d + 'px)');
+        if (d > 40) bad.push(id + ':' + t + ' fake differs too much (' + d + 'px)');
+        if (!Art.region(id, t)) bad.push(id + ':' + t + ' has no ring region');
+      }
+    }
+    return { n: ids.length, uniq: urls.size, bad, maxDiff };
+  });
+  check(art.n >= 30 && art.uniq === art.n, art.n + ' items, ' + art.uniq + ' distinct sprites');
+  check(art.bad.length === 0, 'fakes differ by one small detail (max ' + art.maxDiff + 'px)' + (art.bad.length ? ': ' + art.bad.slice(0, 5).join('; ') : ''));
 }
 
 try {
@@ -189,6 +278,24 @@ try {
   check(await exists('#modal.show'), 'daily gift popup appears on first launch');
   await dismiss();
   await page.screenshot({ path: path.join(SHOTS, 'shop.png') });
+
+  // ---- art, layout, toasts
+  await artCheck();
+  await layoutCheck(page, '390x844');
+  await G(() => { for (let i = 0; i < 6; i++) window.__game.ui.toast('toast ' + i); });
+  check((await G(() => document.querySelectorAll('.toast').length)) <= 2, 'at most 2 toasts visible at once');
+  const small = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
+  const page2 = await small.newPage();
+  page2.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') logs.push('360: ' + m.type() + ': ' + m.text()); });
+  page2.on('pageerror', (e) => logs.push('360 pageerror: ' + e.message));
+  await page2.goto(url);
+  await page2.waitForFunction(() => window.__game && window.__game.state, null, { timeout: 10000 });
+  await sleep(500);
+  for (let i = 0; i < 3 && (await page2.$('#mOk')); i++) { await page2.click('#mOk'); await sleep(80); }
+  await sleep(300);
+  await page2.screenshot({ path: path.join(SHOTS, 'shop-360.png') });
+  await layoutCheck(page2, '360x740');
+  await small.close();
 
   // ---- floating joystick via real touch events
   const cdp = await ctx.newCDPSession(page);
@@ -207,6 +314,16 @@ try {
   check(p1.near === 'counter', 'walked to the counter (near=' + p1.near + ')');
   check(!(await G(() => document.getElementById('joy').classList.contains('on'))), 'joystick ring hides on release');
   check(await G(() => getComputedStyle(document.getElementById('actionBtn')).display !== 'none'), 'action button visible at the counter');
+
+  // ---- open the shop and let a queue build up (screenshot: customers lining up for the counter)
+  await G(() => window.__game.goTo('counter'));
+  await sleep(100);
+  await click('#actionBtn');
+  const t1 = Date.now();
+  while ((await G(() => window.__game.shop.queued)) < 3 && Date.now() - t1 < 20000) await sleep(150);
+  const queuedNow = await G(() => window.__game.shop.queued);
+  check(queuedNow >= 3, 'customers line up in a visible queue (' + queuedNow + ')');
+  await page.screenshot({ path: path.join(SHOTS, 'queue.png') });
 
   // ---- serve customers incl. haggle
   const opts = { haggle: true, shot: true, tradeShot: true };
@@ -242,6 +359,7 @@ try {
   const wall = Date.now();
   let days = 0;
   let upgrades = 0;
+  let rankShot = false;
   while ((await G(() => window.__game.time)) - t0 < 180 && Date.now() - wall < 240000) {
     await serveCustomers(99, { haggle: Math.random() < 0.5 });
     await dismiss();
@@ -250,10 +368,20 @@ try {
     if (await buyUpgrade()) upgrades++;
     await sleepDay();
     days++;
+    if (!rankShot && (await G(() => window.__game.state.rank)) >= 1) {
+      rankShot = true;
+      await dismiss();
+      await stockShelf();
+      await sleep(600);
+      await page.screenshot({ path: path.join(SHOTS, 'shop-rank1.png') });
+    }
   }
   const simmed = (await G(() => window.__game.time)) - t0;
   console.log('  simulated ' + simmed.toFixed(0) + 's of game time over ' + days + ' days, ' + upgrades + ' upgrades');
   check(simmed >= 170, 'simulated about 3 minutes of play');
+  const rank = await G(() => window.__game.state.rank);
+  check(rank >= 1 && rankShot, 'shop rank-up happened during play (rank ' + rank + ', ' + (await G(() => Data.RANKS[window.__game.state.rank])) + ')');
+  check(rankCardShot, 'big rank-up screen was shown');
 
   // ---- persistence
   await G(() => window.__game.save());

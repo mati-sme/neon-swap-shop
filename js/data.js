@@ -56,18 +56,21 @@ const Data = (() => {
   const RARITY_COLORS = ['#cfd6e8', '#4ab8ff', '#c070ff', '#ffcf3a'];
 
   const NEWS = [
-    { icon: '🚀', text: 'Cargo ship docked: gadgets cheap today', cat: 'gadget', mult: 0.8 },
-    { icon: '🎉', text: 'Toy fair! Toys are worth more', cat: 'toy', mult: 1.4 },
-    { icon: '✨', text: 'Shiny rush! Shiny things are hot', cat: 'shiny', mult: 1.4 },
-    { icon: '🧹', text: 'Junk drive: everyone wants junk', cat: 'junk', mult: 1.8 },
-    { icon: '🌙', text: 'Quiet day on the station', cat: null, mult: 1 },
-    { icon: '🎸', text: 'Retro craze: gadgets are cool again', cat: 'gadget', mult: 1.4 },
-    { icon: '⚡', text: 'Power blip: gadgets cost more', cat: 'gadget', mult: 1.3 },
-    { icon: '🍕', text: 'Pizza day: everyone is happy', cat: null, mult: 1.1 },
+    { icon: '🚀', text: 'Gadgets are cheap', cat: 'gadget', mult: 0.8 },
+    { icon: '🎉', text: 'Toy fair! Toys cost more', cat: 'toy', mult: 1.4 },
+    { icon: '✨', text: 'Shiny rush!', cat: 'shiny', mult: 1.4 },
+    { icon: '🧹', text: 'Junk is hot!', cat: 'junk', mult: 1.8 },
+    { icon: '🌙', text: 'Quiet day', cat: null, mult: 1 },
+    { icon: '🎸', text: 'Retro gadgets!', cat: 'gadget', mult: 1.4 },
+    { icon: '⚡', text: 'Power blip: gadgets up', cat: 'gadget', mult: 1.3 },
+    { icon: '🍕', text: 'Pizza day!', cat: null, mult: 1.1 },
   ];
 
   const RANKS = ['Stall', 'Kiosk', 'Shop', 'Mega Store', 'Station Icon'];
-  const FEES = [60, 150, 350, 800, 1800];
+  // rank-up goal for rank r -> r+1: coins earned during this rank, or play seconds as a guaranteed floor
+  const RANK_EARN = [320, 1200, 2800, 6000];
+  const RANK_TIME = [420, 540, 600, 660];
+  const RANK_GIFT = ['+1 slot · new look', '+1 slot · neon + window', '+1 slot · gold trim', '+1 slot · red carpet'];
 
   // id, icon, name, base cost, cost growth, max level
   const UPGRADES = [
@@ -126,7 +129,7 @@ const Data = (() => {
   function xpNeed(level) { return 10 + 8 * level; }
 
   return {
-    ITEMS, IDS, BY_TIER, TIER_NAMES, TIER_COLORS, RARITY, RARITY_COLORS, NEWS, RANKS, FEES, UPGRADES, STICKERS, DECOR,
+    ITEMS, IDS, BY_TIER, TIER_NAMES, TIER_COLORS, RARITY, RARITY_COLORS, NEWS, RANKS, RANK_EARN, RANK_TIME, RANK_GIFT, UPGRADES, STICKERS, DECOR,
     split, item, price, upCost, xpNeed, newsMult,
   };
 })();

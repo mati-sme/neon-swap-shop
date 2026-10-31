@@ -1,4 +1,4 @@
-/* Neon Swap Shop — boot, game rules (coins/xp/levels/days/fees) and the single rAF loop */
+/* Neon Swap Shop — boot, game rules (coins/xp/levels/days/rank) and the single rAF loop */
 'use strict';
 
 const Game = (() => {
@@ -11,6 +11,9 @@ const Game = (() => {
   const fresh = !localStorage.getItem(Save.KEY);
   let scene = 'shop';
   let viewH = 422;
+  let hudBottom = 100;
+  let camY = 0;
+  let lastCam = -999;
   let shakeAmp = 0;
   let time = 0;
   let resetting = false;
@@ -18,15 +21,63 @@ const Game = (() => {
   let saveT = 0;
   let lastAction = '';
   const api = { fast: params.get('fast') === '1' };
+  const goalOut = { kind: '', icon: '', txt: '', pct: 0, can: false };
 
   const pick = (a) => a[Math.floor(Math.random() * a.length)];
 
   // ---------- rules ----------
 
-  const fee = () => Math.round(Data.FEES[Math.min(state.rank, 4)] * state.feeMult);
   const slots = () => Math.min(10, 3 + state.up.slots + state.rank);
   const bagCap = () => 6 + 2 * state.up.bag;
   const mult = () => (state.streak >= 10 ? 4 : state.streak >= 6 ? 3 : state.streak >= 3 ? 2 : 1);
+
+  // progress (0..1) towards the next shop rank: coins earned this rank OR play time, whichever is further
+  function rankPct() {
+    const r = state.rank;
+    if (r >= Data.RANKS.length - 1) return 1;
+    return Math.min(1, Math.max(state.rankEarned / Data.RANK_EARN[r], state.rankT / Data.RANK_TIME[r]));
+  }
+
+  function checkRank() {
+    if (state.rank >= Data.RANKS.length - 1 || rankPct() < 1) return;
+    state.rank++;
+    state.rankEarned = 0;
+    state.rankT = 0;
+    const rank = state.rank;
+    sticker('rank');
+    SFX.play('level');
+    UI.queue(() => UI.rankUp(rank));
+    save();
+  }
+
+  // the one goal shown in the HUD: something to buy as soon as it is affordable, else whatever is closest
+  function goal() {
+    const s = state;
+    let up = null;
+    let upPct = -1;
+    let upTxt = '';
+    for (let i = 0; i < Data.UPGRADES.length; i++) {
+      const u = Data.UPGRADES[i];
+      const lvl = s.up[u[0]];
+      if (lvl >= u[5]) continue;
+      const cost = Data.upCost(u[0], lvl);
+      const p = Math.min(1, s.coins / cost);
+      if (p > upPct) { upPct = p; up = u; upTxt = s.coins >= cost ? '🪙 ' + cost : s.coins + '/' + cost; }
+    }
+    const rp = rankPct();
+    const xp = Math.min(1, s.xp / Data.xpNeed(s.level));
+    goalOut.can = false;
+    if (up && upPct >= 1) {
+      goalOut.kind = 'up'; goalOut.icon = up[1]; goalOut.pct = 1; goalOut.can = true; goalOut.txt = upTxt;
+    } else if (s.rank < Data.RANKS.length - 1 && rp >= xp && rp >= upPct) {
+      goalOut.kind = 'rank'; goalOut.icon = '🏠'; goalOut.pct = rp; goalOut.txt = Math.floor(rp * 100) + '%';
+    } else if (up && upPct >= xp) {
+      goalOut.kind = 'up'; goalOut.icon = up[1]; goalOut.pct = upPct; goalOut.txt = upTxt;
+    } else {
+      goalOut.kind = 'xp'; goalOut.icon = '⭐'; goalOut.pct = xp; goalOut.txt = s.xp + '/' + Data.xpNeed(s.level);
+    }
+    return goalOut;
+  }
 
   function addCoins(n, o) {
     o = o || {};
@@ -36,6 +87,7 @@ const Game = (() => {
     if (n > 0) {
       state.today.coins += n;
       state.stats.earned += n;
+      state.rankEarned += n;
       if (!o.quiet) {
         UI.pop('+' + n + (!o.raw && mult() > 1 ? ' x' + mult() : ''), '#ffe27a');
         UI.flyCoins(n, o.fromEl);
@@ -132,24 +184,6 @@ const Game = (() => {
       invAdd(k + '+', 1);
       lines.push('✨ ' + Data.item(k).name);
     }
-    if (state.day >= state.feeDue) {
-      const f = fee();
-      if (state.coins >= f) {
-        state.coins -= f;
-        if (state.rank < 4) state.rank++; else state.feeMult *= 1.3;
-        state.feeMult = state.rank < 4 ? 1 : state.feeMult;
-        state.feeDue = state.day + 7;
-        sticker('rank');
-        lines.push('🏠 Fee paid! ' + Data.RANKS[state.rank]);
-        UI.confetti(80);
-      } else {
-        const pay = Math.min(state.coins, Math.ceil(f * 0.1));
-        state.coins -= pay;
-        state.feeDue = state.day + 3;
-        state.feeMult *= 0.85;
-        lines.push('🤖 No worries! +3 days (-' + pay + ' 🪙)');
-      }
-    }
     const sum = { day: state.day, coins: state.today.coins, xp: state.today.xp, trades: state.today.trades, lines };
     state.day++;
     state.news = Math.floor(Math.random() * Data.NEWS.length);
@@ -183,17 +217,26 @@ const Game = (() => {
 
   // ---------- loop ----------
 
+  // the canvas fills everything below the HUD; its low-res height follows that area's aspect
   function resize() {
-    viewH = Math.max(300, Math.min(520, Math.round(Art.W * innerHeight / innerWidth)));
+    hudBottom = Math.ceil($('hud').getBoundingClientRect().bottom);
+    const availH = Math.max(200, innerHeight - hudBottom);
+    viewH = Math.max(240, Math.min(560, Math.round(Art.W * availH / innerWidth)));
+    cv.style.top = hudBottom + 'px';
+    cv.style.height = availH + 'px';
     cv.width = Art.W;
     cv.height = viewH;
+    document.documentElement.style.setProperty('--hudb', hudBottom + 'px');
     api.viewH = viewH;
+    lastCam = -999;
   }
 
   function hudTick() {
+    if (Math.ceil($('hud').getBoundingClientRect().bottom) !== hudBottom) resize();
+    checkRank();
     UI.hud();
     const sc = scene === 'shop';
-    $('side').style.display = sc ? '' : 'none';
+    $('labels').style.display = sc ? '' : 'none';
     $('hDump').style.display = sc ? 'none' : '';
     if (!sc) $('hDump').textContent = '⛏️ ' + Dump.digsLeft + '  🎒 ' + Dump.bag.length + '/' + bagCap();
     // tutorial
@@ -210,6 +253,7 @@ const Game = (() => {
     frame.last = now;
     const gdt = dt * (api.fast ? 3 : 1);
     time += gdt;
+    state.rankT += gdt;
     if (scene === 'shop') Shop.update(gdt, time); else Dump.update(gdt, time);
     Trade.tick(dt);
     UI.tick(gdt);
@@ -226,8 +270,9 @@ const Game = (() => {
     ctx.save();
     ctx.translate(sx, sy);
     if (scene === 'shop') {
-      // room starts below the HUD (~52 low-res px) and scrolls down as the player walks south
-      const camY = Math.round(Math.max(-52, Math.min(Math.max(-52, Art.SHOP_H - viewH), Shop.player.y - viewH / 2)));
+      // the whole room fits on normal phones; on short screens it scrolls with the player
+      camY = viewH >= Art.SHOP_H ? 0 : Math.round(Math.max(0, Math.min(Art.SHOP_H - viewH, Shop.player.y - viewH / 2)));
+      if (camY !== lastCam) { lastCam = camY; Shop.layout(camY, viewH, hudBottom); }
       Shop.draw(ctx, camY, viewH, time);
     } else Dump.draw(ctx, time);
     ctx.restore();
@@ -260,6 +305,7 @@ const Game = (() => {
     addEventListener('resize', resize);
     Input.bind($('play'), $('joy'), $('joyKnob'));
     UI.bindModal();
+    Shop.initLabels();
     $('actionBtn').addEventListener('click', doAction);
     $('digBtn').addEventListener('click', () => { SFX.unlock(); Dump.tap(); });
     $('bMenu').addEventListener('click', () => { SFX.unlock(); if (!UI.isOpen()) UI.menu(); });
@@ -267,6 +313,11 @@ const Game = (() => {
     $('bBook').addEventListener('click', () => { SFX.unlock(); if (!UI.isOpen()) UI.book(); });
     $('bHand').addEventListener('click', () => { SFX.unlock(); if (!UI.isOpen()) UI.handbook(); });
     $('hNews').addEventListener('click', () => UI.toast(Data.NEWS[state.news].icon + ' ' + Data.NEWS[state.news].text));
+    $('hGoal').addEventListener('click', () => {
+      SFX.unlock();
+      if (UI.isOpen()) return;
+      if (goal().kind === 'up') UI.upgrades(); else UI.toast(goalOut.icon + ' ' + goalOut.txt);
+    });
     addEventListener('keydown', (e) => {
       if (e.key === 'e' || e.key === ' ' || e.key === 'Enter') { if (!UI.isOpen()) { e.preventDefault(); doAction(); } }
     });
@@ -293,13 +344,15 @@ const Game = (() => {
   }
 
   Object.defineProperties(api, Object.getOwnPropertyDescriptors({
-    fee, slots, bagCap, mult, addCoins, addXp, success, breakStreak, rep, sticker, markFound, invAdd, invTake, buyUpgrade,
-    tutCheck, tutDone, sleep, setScene, shake, save, reset, boot, doAction,
+    slots, bagCap, mult, addCoins, addXp, success, breakStreak, rep, sticker, markFound, invAdd, invTake, buyUpgrade,
+    tutCheck, tutDone, sleep, setScene, shake, save, reset, boot, doAction, goal, rankPct, checkRank,
     get state() { return state; },
     get scene() { return scene; },
     get time() { return time; },
     get viewH() { return viewH; },
     set viewH(v) { viewH = v; },
+    get hudBottom() { return hudBottom; },
+    get camY() { return camY; },
     get player() { return scene === 'shop' ? Shop.player : Dump.player; },
     get nearStation() {
       if (scene === 'shop') return Shop.near ? Shop.near.id : null;
