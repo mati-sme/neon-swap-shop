@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b0820">
+<meta name="description" content="Neon Swap Shop — a cozy cyberpunk swap shop. Haggle, spot fakes, dig in the junk dump.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Neon Swap Shop</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app" data-scene="shop">
+  <canvas id="cv" width="195" height="422"></canvas>
+  <div id="play"></div>
+  <div id="joy"><i id="joyKnob"></i></div>
+
+  <div id="hud">
+    <div class="row">
+      <div class="chip"><span>🪙</span><b id="hCoins">0</b></div>
+      <div class="chip lvl"><span>⭐</span><b id="hLvl">1</b><div class="bar"><i id="hXp"></i></div></div>
+      <button id="bMenu" class="ibtn" aria-label="Menu">⚙️</button>
+    </div>
+    <div class="row">
+      <div class="chip"><span>📅</span><b id="hDay">1</b></div>
+      <div class="chip rent"><span>🏠</span><div class="bar"><i id="hRent"></i></div><small id="hRentTxt"></small></div>
+      <button id="hNews" class="chip news" aria-label="News">🌙</button>
+    </div>
+    <div id="hStreak"></div>
+    <div id="hDump" class="chip"></div>
+  </div>
+
+  <div id="side">
+    <button id="bUp" class="ibtn" aria-label="Upgrades">⬆️</button>
+    <button id="bBook" class="ibtn" aria-label="Book">📖</button>
+    <button id="bHand" class="ibtn" aria-label="Handbook">📒</button>
+  </div>
+
+  <div id="tut"></div>
+  <button id="actionBtn" style="display:none"><span>🔔</span><small></small></button>
+  <button id="digBtn" class="big ok hidden">⛏️ TAP!</button>
+  <div id="loot"></div>
+
+  <div id="toasts"></div>
+  <div id="fxlayer"></div>
+  <canvas id="fx"></canvas>
+  <div id="flash"></div>
+  <div id="modal"><div id="mBody"></div></div>
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/save.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/art.js"></script>
+<script src="js/input.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/trade.js"></script>
+<script src="js/shop.js"></script>
+<script src="js/scavenge.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
